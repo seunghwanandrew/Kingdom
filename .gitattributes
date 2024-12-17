@@ -1,2 +1,19 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_N.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_ORD.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_N.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_ORD.uasset filter=lfs diff=lfs merge=lfs -text
+Contest/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_WhiteSand_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Texture/T_DryGrass_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Texture/T_DryGrass_N.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Texture/T_DryGrass_ORD.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_N.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_DryGrass_ORD.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_BC.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_N.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_Sand_ORD.uasset filter=lfs diff=lfs merge=lfs -text
+Content/0_ProjectSetting/Assets/HwaseongHaenggung/Textures/T_WhiteSand_BC.uasset filter=lfs diff=lfs merge=lfs -text
