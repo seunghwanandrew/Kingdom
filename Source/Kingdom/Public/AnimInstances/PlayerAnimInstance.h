@@ -6,6 +6,7 @@
 #include "PlayerAnimInstance.generated.h"
 
 class APlayerClass;
+class AEquipableItemClass;
 
 UCLASS()
 class KINGDOM_API UPlayerAnimInstance : public UAnimInstance
@@ -13,6 +14,8 @@ class KINGDOM_API UPlayerAnimInstance : public UAnimInstance
 	GENERATED_BODY()
 #pragma region Variable
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Weapon)
+	AEquipableItemClass* CurrentEquippedWeapon;
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Movement)
 	APlayerClass* PlayerRef;
@@ -30,19 +33,34 @@ protected:
 	bool bIsOnTarget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = State)
-	EPlayerActionState CombatState;
+	EPlayerActionState ActionState;
 private:
 #pragma endregion
 #pragma region Function
 public:
 	virtual void NativeUpdateAnimation(float DeltaTime) override;
 	void OnUpdateTargetHandle();
+
+	/* Setter */
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE void SetActionState(const EPlayerActionState& StateCondition) { ActionState = StateCondition; }
 protected:
 	virtual void NativeInitializeAnimation() override;
+	UFUNCTION(BlueprintCallable)
+	void UnEquipPoint();
+	UFUNCTION(BlueprintCallable)
+	void UnEquip();
+	UFUNCTION(BlueprintCallable)
+	void Equip();
+	UFUNCTION(BlueprintCallable)
+	void AttackEnd();
+	UFUNCTION(BlueprintCallable)
+	void EndEngaging();
 private:
 	bool IsShouldMove();
 	bool IsFalling();
 	float SetGroundSpeed();
 	float SetGroundDirection();
+
 #pragma endregion
 };

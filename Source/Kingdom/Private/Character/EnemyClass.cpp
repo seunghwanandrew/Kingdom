@@ -39,6 +39,7 @@ void AEnemyClass::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 void AEnemyClass::Initialize()
 {
 	GetCapsuleComponent()->SetCapsuleSize(42.0f, 96.0f);
+	
 }
 
 void AEnemyClass::CreateInitComponent()

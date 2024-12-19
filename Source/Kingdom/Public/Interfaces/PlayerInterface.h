@@ -15,4 +15,6 @@ class KINGDOM_API IPlayerInterface
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintNativeEvent)
+	void SetOverlappedItem(AActor* OverlappedItemRef);
 };

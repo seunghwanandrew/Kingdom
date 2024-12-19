@@ -1,5 +1,4 @@
 #include "AnimInstances/PlayerAnimInstance.h"
-#include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Character/PlayerClass.h"
 
@@ -11,8 +10,6 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsFalling = IsFalling();
 	GroundSpeed = SetGroundSpeed();
 	GroundDirection = SetGroundDirection();
-
-	UE_LOG(LogTemp, Warning, TEXT("Combat state : %s"), CombatState == EPlayerActionState::EPAS_Combat ? TEXT("Combat") : TEXT("None"));
 }
 
 void UPlayerAnimInstance::NativeInitializeAnimation()
@@ -21,15 +18,46 @@ void UPlayerAnimInstance::NativeInitializeAnimation()
 	PlayerRef = Cast<APlayerClass>(TryGetPawnOwner());
 }
 
+void UPlayerAnimInstance::UnEquipPoint()
+{
+	PlayerRef->UnEquipPoint();
+}
+
+void UPlayerAnimInstance::UnEquip()
+{
+	if (!IsValid(PlayerRef)) return;
+	ActionState = EPlayerActionState::EPAS_None;
+	PlayerRef->SetActionState(ActionState);
+}
+
+void UPlayerAnimInstance::Equip()
+{
+	if (!IsValid(PlayerRef)) return;
+	ActionState = EPlayerActionState::EPAS_Combat;
+	PlayerRef->SetActionState(ActionState);
+}
+
+void UPlayerAnimInstance::AttackEnd()
+{
+	if (!IsValid(PlayerRef)) return;
+	PlayerRef->HandleAttackEnd();
+}
+
+void UPlayerAnimInstance::EndEngaging()
+{
+	if (!IsValid(PlayerRef)) return;
+	PlayerRef->SetIsEngaging(false);
+}
+
 void UPlayerAnimInstance::OnUpdateTargetHandle()
 {
-	CombatState = PlayerRef->GetCombatState();
-	UE_LOG(LogTemp, Warning, TEXT("Combat state : %s"), CombatState == EPlayerActionState::EPAS_Combat ? TEXT("Combat") : TEXT("None"));
+	if (!IsValid(PlayerRef)) return;
+	ActionState = PlayerRef->GetActionState();
 }
 
 bool UPlayerAnimInstance::IsShouldMove()
 {
-	if (!PlayerRef) return false;
+	if (!IsValid(PlayerRef)) return false;
 	UCharacterMovementComponent* MoveComponent = PlayerRef->GetMoveComponent();
 	FVector CurrentAcceleration = MoveComponent->GetCurrentAcceleration();
 	return (CurrentAcceleration != FVector::ZeroVector && GroundSpeed > 3.0f);
@@ -37,7 +65,7 @@ bool UPlayerAnimInstance::IsShouldMove()
 
 bool UPlayerAnimInstance::IsFalling()
 {
-	if (!PlayerRef) return false;
+	if (!IsValid(PlayerRef)) return false;
 	UCharacterMovementComponent* MoveComponent = PlayerRef->GetMoveComponent();
 	return MoveComponent->IsFalling();
 }

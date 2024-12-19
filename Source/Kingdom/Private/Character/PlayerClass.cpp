@@ -14,6 +14,10 @@
 #include "EnhancedInputComponent.h"
 
 #include "Combat/LockonComponent.h"
+#include "Combat/CombatComponent.h"
+#include "Combat/TraceComponent.h"
+
+#include "Items/EquipableItems/CloseRangedWeaponClass.h"
 
 APlayerClass::APlayerClass()
 {
@@ -62,10 +66,54 @@ void APlayerClass::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	EnhancedInput->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayerClass::Move);
 	EnhancedInput->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerClass::Look);
 	EnhancedInput->BindAction(LockonAction, ETriggerEvent::Started, this, &APlayerClass::LockonProcess);
+	EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerClass::ComboAttackProcess);
+	EnhancedInput->BindAction(EKeyPressedAction, ETriggerEvent::Started, this, &APlayerClass::EKeyPressed);
+}
+
+void APlayerClass::OnUpdateTargetHandler(AActor* TargetActor)
+{
+	if (TargetActor)
+	{
+		if (CurrentEquippedWeapon == CloseRangedWeaponItem && ActionState != EPlayerActionState::EPAS_Combat)
+		{
+			EquipCloseRangeWeaponProcess();
+		}
+		AnimInstance->SetActionState(ActionState);
+		SetWeaponToEquip_UnEquipSocketPoint(CurrentEquippedWeapon, CloseRangedWeaponEquipSocketName);
+	}
+	else
+	{
+		UnEquipCloseRangeWeaponProcess();
+	}
+	AnimInstance->OnUpdateTargetHandle();
+}
+
+void APlayerClass::SetOverlappedItem_Implementation(AActor* OverlappedItemRef)
+{
+	OverlappedItem = OverlappedItemRef;
+}
+
+void APlayerClass::HandleAttackEnd()
+{
+	SetActionState(EPlayerActionState::EPAS_Combat);
+	AnimInstance->SetActionState(EPlayerActionState::EPAS_Combat);
+	CurrentEquippedWeapon->Set_EmptyTraceTargetToIgnoreVariable();
+}
+
+UTraceComponent* APlayerClass::GetCurrentEquipWeaponTraceComponent()
+{
+	return CurrentEquippedWeapon->GetTraceComponent();
+}
+
+void APlayerClass::UnEquipPoint()
+{
+	FName CurrentWeaponEquipPointSocketName = GetCurrentEquippedSocketName(CurrentEquippedWeapon);
+	SwitchingWeaponEquipSocket(CurrentEquippedWeapon, CurrentWeaponEquipPointSocketName);
 }
 
 void APlayerClass::Move(const FInputActionValue& Value)
 {
+	if (ActionState <= EPlayerActionState::EPAS_Attacking) return;
 	FVector2D MoveVector = Value.Get<FVector2D>();
 
 	if (!Controller) return;
@@ -87,9 +135,43 @@ void APlayerClass::Look(const FInputActionValue& Value)
 	AddControllerPitchInput(LookVector.Y);
 }
 
+void APlayerClass::EKeyPressed()
+{
+	if (IsValid(OverlappedItem))
+	{
+		if (OverlappedItem->ActorHasTag("CloseRangedWeaponClass"))
+		{
+			StoreWeaponItem(OverlappedItem);	
+		}
+		else return;
+	}
+	else if (IsValid(CurrentEquippedWeapon))
+	{
+		if (ActionState <= EPlayerActionState::EPAS_Attacking) return;
+		if (bIsEngaging) return;
+
+		if (CurrentEquippedWeapon == CloseRangedWeaponItem)
+		{
+			FName CurrentSocketName = GetCurrentEquippedSocketName(CurrentEquippedWeapon);
+			if (AnimInstance)
+			{
+				if (ActionState == EPlayerActionState::EPAS_None)
+				{
+					EquipCloseRangeWeaponProcess();
+					SwitchingWeaponEquipSocket(CurrentEquippedWeapon, CurrentSocketName);
+				}
+				else if (ActionState == EPlayerActionState::EPAS_Combat)
+				{
+					UnEquipCloseRangeWeaponProcess();
+				}
+			}
+		}			
+	}
+}
+
 void APlayerClass::LockonProcess()
 {
-	if (CombatState == EPlayerActionState::EPAS_None)
+	if (!bIsEngaging)
 	{
 		Lockon->StartLockon();
 	}
@@ -99,23 +181,59 @@ void APlayerClass::LockonProcess()
 	}
 }
 
-void APlayerClass::OnUpdateTargetHandler(AActor* TargetActor)
+void APlayerClass::ComboAttackProcess()
 {
-	if (TargetActor)
+	if (!IsValid(Combat) || ActionState != EPlayerActionState::EPAS_Combat) return;
+	ActionState = EPlayerActionState::EPAS_Attacking;
+	Combat->ComboAttack();
+}
+
+void APlayerClass::SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem, FName CurrentSocketName)
+{
+	if (!IsValid(EquipmentItem) || CurrentSocketName == FName("")) return;
+
+	if (EquipmentItem->ActorHasTag("CloseRangedWeaponClass"))
 	{
-		CombatState = EPlayerActionState::EPAS_Combat;
+		if (CurrentSocketName == CloseRangedWeaponUnEquipSocketName)
+		{
+			SetWeaponToEquip_UnEquipSocketPoint(EquipmentItem, CloseRangedWeaponEquipSocketName);
+		}
+		else if (CurrentSocketName == CloseRangedWeaponEquipSocketName)
+		{
+			SetWeaponToEquip_UnEquipSocketPoint(EquipmentItem, CloseRangedWeaponUnEquipSocketName);
+		}
 	}
-	else
-	{
-		CombatState = EPlayerActionState::EPAS_None;
-	}
-	AnimInstance->OnUpdateTargetHandle();
-	UE_LOG(LogTemp, Warning, TEXT("Target State - %s"), TargetActor ? TEXT("Target :"), *TargetActor->GetName() : TEXT("Target is nulltpr"));
+}
+
+void APlayerClass::SetWeaponToEquip_UnEquipSocketPoint(AEquipableItemClass* EquipmentItem, FName SocketName)
+{
+	EquipmentItem->AttachMeshtoSocket(GetMesh(), SocketName);
+}
+
+FName APlayerClass::GetCurrentEquippedSocketName(AEquipableItemClass* EquipmentItem)
+{
+	if (!IsValid(EquipmentItem)) return FName("");
+	return EquipmentItem->GetAttachParentSocketName();
+}
+
+void APlayerClass::EquipCloseRangeWeaponProcess()
+{
+	if (!IsValid(EquipMotionMontage)) return;
+	PlayAnimMontage(EquipMotionMontage);
+	ActionState = EPlayerActionState::EPAS_Equipping;
+}
+
+void APlayerClass::UnEquipCloseRangeWeaponProcess()
+{
+	if (!IsValid(UnEquipMotionMontage)) return;
+	PlayAnimMontage(UnEquipMotionMontage);
+	ActionState = EPlayerActionState::EPAS_Equipping;
 }
 
 void APlayerClass::Initialize()
 {
 	GetCapsuleComponent()->SetCapsuleSize(42.0f, 96.0f);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Overlap);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -169,4 +287,19 @@ void APlayerClass::CreateAppearanceComponent()
 void APlayerClass::CreateCombatComponent()
 {
 	Lockon = CreateDefaultSubobject<ULockonComponent>(TEXT("Lockon"));
+	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("Combat"));
+}
+
+void APlayerClass::StoreWeaponItem(AActor* ItemToStore)
+{
+	if (ItemToStore->ActorHasTag("CloseRangedWeaponClass"))
+	{
+		CloseRangedWeaponItem = Cast<ACloseRangedWeaponClass>(ItemToStore);
+		CurrentEquippedWeapon = CloseRangedWeaponItem;
+		CurrentEquippedWeapon->DisableNiagaraComponent();
+		AnimInstance->CurrentEquippedWeapon = CurrentEquippedWeapon;
+	}
+	CurrentEquippedWeapon->SetSphereColliderCollision(ECollisionEnabled::NoCollision);
+	CurrentEquippedWeapon->SetItemState(EItemState::EIS_Equipped);
+	CurrentEquippedWeapon->AttachMeshtoSocket(GetMesh(), CloseRangedWeaponUnEquipSocketName);
 }
