@@ -1,12 +1,15 @@
 #include "Character/EnemyClass.h"
 #include "Components/CapsuleComponent.h"
 #include "UserWidget/TargetDisplayerWidgetComponent.h"
+#include "Engine/DamageEvents.h"
+#include "Character/StatsComponent.h"
 
 AEnemyClass::AEnemyClass()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	Initialize();
 	CreateInitComponent();
+	CreateCombatComponent();
 }
 
 void AEnemyClass::BeginPlay()
@@ -36,10 +39,23 @@ void AEnemyClass::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 
 }
 
+void AEnemyClass::GetHit_Implementation(float DamageAmount, AController* EventInstigator, AActor* DamageCauser)
+{
+	// To Do Hit Reaction;
+	FDamageEvent TargetAttackedEvent;
+	float Damage = TakeDamage(DamageAmount, TargetAttackedEvent, EventInstigator, DamageCauser);
+	
+	StatsComponent->ApplyDamage(Damage);
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, FString::Printf(TEXT("Current Health : %f"), StatsComponent->Stats[EStats::ES_Health]));
+	}
+}
+
 void AEnemyClass::Initialize()
 {
-	GetCapsuleComponent()->SetCapsuleSize(42.0f, 96.0f);
-	
+	GetCapsuleComponent()->SetCapsuleSize(42.0f, 96.0f);	
 }
 
 void AEnemyClass::CreateInitComponent()
@@ -48,5 +64,10 @@ void AEnemyClass::CreateInitComponent()
 	TargetDisplayer->SetupAttachment(GetRootComponent());
 	TargetDisplayer->SetWidgetSpace(EWidgetSpace::Screen);
 	TargetDisplayer->SetVisibility(false);
+}
+
+void AEnemyClass::CreateCombatComponent()
+{
+	StatsComponent = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
 }
 

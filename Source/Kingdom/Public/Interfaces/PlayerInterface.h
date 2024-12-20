@@ -17,4 +17,6 @@ class KINGDOM_API IPlayerInterface
 public:
 	UFUNCTION(BlueprintNativeEvent)
 	void SetOverlappedItem(AActor* OverlappedItemRef);
+	UFUNCTION(BlueprintNativeEvent)
+	bool HasEnoughStamina(float MinValue);
 };

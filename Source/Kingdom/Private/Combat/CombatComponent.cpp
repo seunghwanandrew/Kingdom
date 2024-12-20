@@ -21,11 +21,24 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 
 void UCombatComponent::ComboAttack()
 {
+	IPlayerInterface* PlayerInterface = nullptr;
+	if (CharacterRef->Implements<UPlayerInterface>())
+	{
+		PlayerInterface = Cast<IPlayerInterface>(CharacterRef);
+	}
+
+	if (!PlayerInterface->Execute_HasEnoughStamina(CharacterRef, StaminaToUseForAttacking))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Not Enought Stamina is remained"));
+		return;
+	}
 	CharacterRef->PlayAnimMontage(AttackAnimations[ComboCounter]);
 	
 	ComboCounter++;
 	int MaxCombo = AttackAnimations.Num() - 1;
 	ComboCounter = UKismetMathLibrary::Wrap(ComboCounter, -1, MaxCombo);
+
+	OnAttackPerformedDelegate.Broadcast(StaminaToUseForAttacking);
 }
 
 

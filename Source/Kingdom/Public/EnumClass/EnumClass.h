@@ -16,3 +16,14 @@ enum class EItemState : uint8
 	EIS_Hovering UMETA(DisplayName = "Hovering"),
 	EIS_Equipped UMETA(DisplayName = "Equipped"),
 };
+
+UENUM(BlueprintType)
+enum class EStats : uint8
+{
+	ES_Nont UMETA(DisplayName = "None Selected"),
+	ES_Health UMETA(DisplayName = "Current Health"),
+	ES_MaxHealth UMETA(DisplayName = "Max Heatlh"),
+	ES_Stamina UMETA(DisplayName = "Current Stamina"),
+	ES_MaxStamina UMETA(DisplayName = "Max Stamina"),
+	ES_Strength UMETA(DisplayName = "Strength")
+};

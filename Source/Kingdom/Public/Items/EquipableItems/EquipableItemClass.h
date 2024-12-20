@@ -10,7 +10,7 @@ UCLASS()
 class KINGDOM_API AEquipableItemClass : public ABaseItemClass
 {
 	GENERATED_BODY()
-#pragma region Variable
+#pragma region Variables
 public:
 protected:
 	/* Combat Component */

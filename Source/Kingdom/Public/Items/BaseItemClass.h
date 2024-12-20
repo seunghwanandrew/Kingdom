@@ -16,7 +16,7 @@ UCLASS()
 class KINGDOM_API ABaseItemClass : public AActor
 {
 	GENERATED_BODY()
-#pragma region Variable
+#pragma region Variables
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
 	USkeletalMeshComponent* SkeletalMesh;

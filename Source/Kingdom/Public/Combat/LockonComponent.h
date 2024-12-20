@@ -14,7 +14,7 @@ class KINGDOM_API ULockonComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-#pragma region Variable
+#pragma region Variables
 public:
 	AActor* CurrentTargetActor;
 

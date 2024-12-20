@@ -2,7 +2,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Engine/DamageEvents.h"
 #include "Interfaces/HitInterface.h"
 
 UTraceComponent::UTraceComponent()
@@ -23,57 +22,78 @@ void UTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 	if (!bIsAttacking) return;
 
 	TArray<FHitResult> OutHitResults;
+	BoxTraceProcess_FindTargetActor(OutHitResults);
+	if (OutHitResults.Num() == 0) return;
+	float CharacterDamage = GetAttackPowerFromOwner(Owner);
+	ApplyDamageToFoundActor(OutHitResults, CharacterDamage);
+}
 
-	if (IsValid(SkeletalMesh))
+void UTraceComponent::BoxTraceProcess_FindTargetActor(TArray<FHitResult>& OutHitResults)
+{
+	if (!IsValid(SkeletalMesh)) return;
+	FVector StartSocketLocation = SkeletalMesh->GetSocketLocation(Start);
+	FVector EndSocketLocation = SkeletalMesh->GetSocketLocation(End);
+	FQuat ShapeRotation = SkeletalMesh->GetSocketQuaternion(Rotation);
+
+	double WeaponLength = FVector::Distance(StartSocketLocation, EndSocketLocation);
+	FVector BoxHalfExtent = FVector{ BoxCollisionLength, BoxCollisionLength, WeaponLength } *0.5f;
+	FCollisionShape Box = FCollisionShape::MakeBox(BoxHalfExtent);
+	FCollisionQueryParams IgnoreParams = { FName{ TEXT("Ignore Params") }, false, Owner };
+
+	bool bHasFoundTarget = GetWorld()->SweepMultiByChannel(
+		OutHitResults, StartSocketLocation, EndSocketLocation, ShapeRotation,
+		ECollisionChannel::ECC_GameTraceChannel1, Box, IgnoreParams
+	);
+
+	if (bDebugMode)
 	{
-		FVector StartSocketLocation = SkeletalMesh->GetSocketLocation(Start);
-		FVector EndSocketLocation = SkeletalMesh->GetSocketLocation(End);
-		FQuat ShapeRotation = SkeletalMesh->GetSocketQuaternion(Rotation);
-		double WeaponLength = FVector::Distance(StartSocketLocation, EndSocketLocation);
-		FVector BoxHalfExtent = FVector{ BoxCollisionLength, BoxCollisionLength, WeaponLength } * 0.5f ;
-		FCollisionShape Box = FCollisionShape::MakeBox(BoxHalfExtent);
-		FCollisionQueryParams IgnoreParams = {FName{TEXT("Ignore Params")}, false, Owner};
+		DrawDebugBoxTrace(StartSocketLocation, EndSocketLocation, Box, bHasFoundTarget, ShapeRotation);
+	}
+}
 
-		bool bHasFoundTarget = GetWorld()->SweepMultiByChannel(
-			OutHitResults, StartSocketLocation, EndSocketLocation, ShapeRotation,
-			ECollisionChannel::ECC_GameTraceChannel1, Box, IgnoreParams
+void UTraceComponent::DrawDebugBoxTrace(const FVector& StartSocketLocation, const FVector& EndSocketLocation, FCollisionShape& Box, bool bHasFoundTarget, FQuat& ShapeRotation)
+{
+	if (IsValid(GetWorld()))
+	{
+		FVector CenterPoint = UKismetMathLibrary::VLerp(StartSocketLocation, EndSocketLocation, 0.5f);
+		UKismetSystemLibrary::DrawDebugBox(
+			GetWorld(), CenterPoint, Box.GetExtent(),
+			bHasFoundTarget ? FLinearColor::Green : FLinearColor::Red,
+			ShapeRotation.Rotator(), 1.0f, 2.0f
 		);
+	}
+}
 
-		if (bDebugMode)
+float UTraceComponent::GetAttackPowerFromOwner(const AActor* OwnerRef)
+{
+	float CharacterDamage = 0.0f;
+
+	if (Owner->Implements<UHitInterface>())
+	{
+		IHitInterface* HitInterface = Cast<IHitInterface>(Owner);
+		if (HitInterface)
 		{
-			if (IsValid(GetWorld()))
-			{
-				FVector CenterPoint = UKismetMathLibrary::VLerp(StartSocketLocation, EndSocketLocation, 0.5f);
-				UKismetSystemLibrary::DrawDebugBox(
-					GetWorld(), CenterPoint, Box.GetExtent(),
-					bHasFoundTarget ? FLinearColor::Green : FLinearColor::Red,
-					ShapeRotation.Rotator(), 1.0f, 2.0f
-				);
-			}
-			
+			CharacterDamage = HitInterface->Execute_GetCharacterStrength(Owner);
 		}
 	}
 
-	if (OutHitResults.Num() == 0) return;
+	return CharacterDamage;
+}
 
-	float CharacterDamage = 0.0f;
-
-	IHitInterface* HitInterfaceRef = Cast<IHitInterface>(Owner);
-	if (HitInterfaceRef)
-	{
-		CharacterDamage = HitInterfaceRef->GetDamage();
-	}
-
-	FDamageEvent TargetAttackedEvent;
-
+void UTraceComponent::ApplyDamageToFoundActor(TArray<FHitResult>& OutHitResults, float CharacterDamage)
+{
 	for (const FHitResult& HitResult : OutHitResults)
 	{
 		AActor* TargetActor = HitResult.GetActor();
-
 		if (TargetToIgnore.Contains(TargetActor)) continue;
 
-		TargetActor->TakeDamage(CharacterDamage, TargetAttackedEvent, Owner->GetInstigatorController(), Owner);
+		bool IsTrue = TargetActor->Implements<UHitInterface>();
 
+		if (IsTrue)
+		{
+			IHitInterface* HitInterface = Cast<IHitInterface>(TargetActor);
+			HitInterface->Execute_GetHit(TargetActor, CharacterDamage, Owner->GetInstigatorController(), Owner);
+		}
 		TargetToIgnore.AddUnique(TargetActor);
 	}
 }

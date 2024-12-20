@@ -13,6 +13,8 @@ class USpringArmComponent;
 class UCameraComponent;
 class USkeletalMeshComponent;
 class UCapsuleComponent;
+class UStatsComponent;
+class UActionComponent;
 class ULockonComponent;
 class UCombatComponent;
 class UTraceComponent;
@@ -26,7 +28,7 @@ UCLASS()
 class KINGDOM_API APlayerClass : public ACharacter, public IPlayerInterface, public IHitInterface
 {
 	GENERATED_BODY()
-#pragma region Variable
+#pragma region Variables
 public:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = Items)
@@ -55,6 +57,8 @@ private:
 	UInputAction* AttackAction;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* EKeyPressedAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* CrouchAction;
 
 	/* Camera Component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"));
@@ -70,9 +74,15 @@ private:
 
 	/* Combat Component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
-	ULockonComponent* Lockon;
+	ULockonComponent* LockonComponent;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
-	UCombatComponent* Combat;
+	UCombatComponent* CombatComponent;
+
+	/* Stats Component */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
+	UStatsComponent* StatsComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
+	UActionComponent* ActionComponent;
 
 	/* Combat Variable */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = State, meta = (AllowPrivateAccess = "true"))
@@ -105,7 +115,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE void SetIsEngaging(bool Value) { bIsEngaging = Value; }
 	FORCEINLINE virtual float GetDamage() override { return 15.0f; }
-	float Implementation_GetDamage() { return 20.0f; }
 
 	/* Getter */
 	UFUNCTION(BlueprintCallable)
@@ -113,17 +122,26 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE EPlayerActionState GetActionState() { return ActionState; }
 
+	/* Event Handler */
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnUpdateTargetHandler(AActor* TargetActor);
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnAttackPerformedHandler(float AttackStamina);
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnStealthMovementHandler(float StealthStaminaUsage);
+
 	APlayerClass();
 	virtual void Tick(float DeltaTime) override;
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	UFUNCTION(BlueprintAuthorityOnly)
-	void OnUpdateTargetHandler(AActor* TargetActor);
 	void SetOverlappedItem_Implementation(AActor* OverlappedItemRef);
 	void HandleAttackEnd();
 	UTraceComponent* GetCurrentEquipWeaponTraceComponent();
 	void UnEquipPoint();
+	float GetCharacterStrength_Implementation();
+	bool HasEnoughStamina_Implementation(float MinValue);
+
 protected:
 	virtual void BeginPlay() override;
 	void Move(const FInputActionValue& Value);
@@ -131,6 +149,8 @@ protected:
 	void EKeyPressed();
 	void LockonProcess();
 	void ComboAttackProcess();
+	void StealthMovement();
+	void StealthToWalkMovement();
 
 	UFUNCTION(BlueprintCallable)
 	void SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem, FName CurrentSocketName);
@@ -146,7 +166,8 @@ private:
 	void Initialize();
 	void CreateInitComponent();
 	void CreateAppearanceComponent();
-	void CreateCombatComponent();	
+	void CreateCombatComponent();
+	void CreateStatsComponent();
 	void StoreWeaponItem(AActor* ItemToStore);
 #pragma endregion	
 

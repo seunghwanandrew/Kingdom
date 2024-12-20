@@ -8,7 +8,7 @@ UCLASS()
 class KINGDOM_API ACloseRangedWeaponClass : public AEquipableItemClass
 {
 	GENERATED_BODY()
-#pragma region Variable
+#pragma region Variables
 public:
 protected:
 private:

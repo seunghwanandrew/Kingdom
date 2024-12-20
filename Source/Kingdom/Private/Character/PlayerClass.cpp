@@ -13,6 +13,9 @@
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
 
+#include "Character/StatsComponent.h"
+#include "Character/ActionComponent.h"
+
 #include "Combat/LockonComponent.h"
 #include "Combat/CombatComponent.h"
 #include "Combat/TraceComponent.h"
@@ -26,6 +29,7 @@ APlayerClass::APlayerClass()
 	CreateInitComponent();
 	CreateAppearanceComponent();
 	CreateCombatComponent();
+	CreateStatsComponent();
 }
 
 void APlayerClass::BeginPlay()
@@ -34,12 +38,15 @@ void APlayerClass::BeginPlay()
 	
 	AnimInstance = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
 
-	Lockon->OnUpdateTargetDelegate.AddDynamic(this, &APlayerClass::OnUpdateTargetHandler);
+	LockonComponent->OnUpdateTargetDelegate.AddDynamic(this, &APlayerClass::OnUpdateTargetHandler);
+	CombatComponent->OnAttackPerformedDelegate.AddDynamic(this, &APlayerClass::OnAttackPerformedHandler);
+	ActionComponent->OnStealthMovementDelegate.AddDynamic(this, &APlayerClass::OnStealthMovementHandler);
 }
 
 void APlayerClass::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	StatsComponent->StaminaRegenerating(DeltaTime);
 }
 
 void APlayerClass::NotifyControllerChanged()
@@ -68,6 +75,8 @@ void APlayerClass::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	EnhancedInput->BindAction(LockonAction, ETriggerEvent::Started, this, &APlayerClass::LockonProcess);
 	EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerClass::ComboAttackProcess);
 	EnhancedInput->BindAction(EKeyPressedAction, ETriggerEvent::Started, this, &APlayerClass::EKeyPressed);
+	EnhancedInput->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &APlayerClass::StealthMovement);
+	EnhancedInput->BindAction(CrouchAction, ETriggerEvent::Completed, this, &APlayerClass::StealthToWalkMovement);
 }
 
 void APlayerClass::OnUpdateTargetHandler(AActor* TargetActor)
@@ -86,6 +95,16 @@ void APlayerClass::OnUpdateTargetHandler(AActor* TargetActor)
 		UnEquipCloseRangeWeaponProcess();
 	}
 	AnimInstance->OnUpdateTargetHandle();
+}
+
+void APlayerClass::OnAttackPerformedHandler(float AttackStamina)
+{
+	StatsComponent->ApplyStaminaUsage(AttackStamina);
+}
+
+void APlayerClass::OnStealthMovementHandler(float StealthStaminaUsage)
+{
+	StatsComponent->ApplyStaminaUsage(StealthStaminaUsage);
 }
 
 void APlayerClass::SetOverlappedItem_Implementation(AActor* OverlappedItemRef)
@@ -109,6 +128,16 @@ void APlayerClass::UnEquipPoint()
 {
 	FName CurrentWeaponEquipPointSocketName = GetCurrentEquippedSocketName(CurrentEquippedWeapon);
 	SwitchingWeaponEquipSocket(CurrentEquippedWeapon, CurrentWeaponEquipPointSocketName);
+}
+
+float APlayerClass::GetCharacterStrength_Implementation()
+{
+	return StatsComponent->Stats[EStats::ES_Strength];
+}
+
+bool APlayerClass::HasEnoughStamina_Implementation(float MinValue)
+{
+	return StatsComponent->Stats[EStats::ES_Stamina] >= MinValue;
 }
 
 void APlayerClass::Move(const FInputActionValue& Value)
@@ -171,21 +200,32 @@ void APlayerClass::EKeyPressed()
 
 void APlayerClass::LockonProcess()
 {
+	if (!IsValid(CurrentEquippedWeapon)) return;
 	if (!bIsEngaging)
 	{
-		Lockon->StartLockon();
+		LockonComponent->StartLockon();
 	}
 	else
 	{
-		Lockon->EndLockon();
+		LockonComponent->EndLockon();
 	}
 }
 
 void APlayerClass::ComboAttackProcess()
 {
-	if (!IsValid(Combat) || ActionState != EPlayerActionState::EPAS_Combat) return;
+	if (!IsValid(CombatComponent) || ActionState != EPlayerActionState::EPAS_Combat) return;
 	ActionState = EPlayerActionState::EPAS_Attacking;
-	Combat->ComboAttack();
+	CombatComponent->ComboAttack();
+}
+
+void APlayerClass::StealthMovement()
+{
+	ActionComponent->StealthMovement();
+}
+
+void APlayerClass::StealthToWalkMovement()
+{
+	ActionComponent->BasicWalkMovement();
 }
 
 void APlayerClass::SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem, FName CurrentSocketName)
@@ -286,8 +326,14 @@ void APlayerClass::CreateAppearanceComponent()
 
 void APlayerClass::CreateCombatComponent()
 {
-	Lockon = CreateDefaultSubobject<ULockonComponent>(TEXT("Lockon"));
-	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("Combat"));
+	LockonComponent = CreateDefaultSubobject<ULockonComponent>(TEXT("Lockon"));
+	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("Combat"));
+}
+
+void APlayerClass::CreateStatsComponent()
+{
+	StatsComponent = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
+	ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("Action"));
 }
 
 void APlayerClass::StoreWeaponItem(AActor* ItemToStore)

@@ -11,7 +11,7 @@ class KINGDOM_API UTraceComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-#pragma region Variable
+#pragma region Variables
 public:
 protected:
 private:
@@ -46,7 +46,12 @@ public:
 	FORCEINLINE void SetOwner(AActor* NewOwner) { Owner = NewOwner; }
 
 	UTraceComponent();
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;	
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	void BoxTraceProcess_FindTargetActor(TArray<FHitResult>& OutHitResults);
+	void DrawDebugBoxTrace(const FVector& StartSocketLocation, const FVector& EndSocketLocation, FCollisionShape& Box, bool bHasFoundTarget, FQuat& ShapeRotation);
+	float GetAttackPowerFromOwner(const AActor* OwnerRef);
+	void ApplyDamageToFoundActor(TArray<FHitResult>& OutHitResults, float CharacterDamage);
+
 protected:
 	virtual void BeginPlay() override;
 private:
