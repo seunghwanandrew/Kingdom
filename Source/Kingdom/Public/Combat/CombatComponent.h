@@ -22,11 +22,13 @@ protected:
 private:
 	/* Montage */
 	UPROPERTY(EditAnywhere, Category = Montage)
-	TArray<UAnimMontage*> AttackAnimations;
+	TArray<UAnimMontage*> AttackMontageList;
+	UPROPERTY(EditAnywhere, Category = Montage)
+	UAnimMontage* AttackMontage;
 	UPROPERTY(VisibleAnywhere, Category = Attacking)
 	int ComboCounter = 0;
 	UPROPERTY(EditAnywhere, Category = Attacking)
-	float StaminaToUseForAttacking = 5.0f;
+	float StaminaToUseForAttacking = 2.0f;
 
 #pragma endregion
 
@@ -34,7 +36,8 @@ private:
 public:	
 	UCombatComponent();
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	void ComboAttack();
+	void Player_ComboAttack();
+	void Enemy_Attack();
 protected:
 	virtual void BeginPlay() override;
 private:

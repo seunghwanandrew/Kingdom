@@ -33,29 +33,25 @@ protected:
 	bool bIsOnTarget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = State)
-	EPlayerActionState ActionState;
+	EPlayerActionState ActionState = EPlayerActionState::EPAS_None;
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = State)
+	EDeathPose DeathPose;
 private:
 #pragma endregion
 #pragma region Function
 public:
-	virtual void NativeUpdateAnimation(float DeltaTime) override;
-	void OnUpdateTargetHandle();
-
 	/* Setter */
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE void SetActionState(const EPlayerActionState& StateCondition) { ActionState = StateCondition; }
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE void SetDeathPose(const EDeathPose& StateCondition) { DeathPose = StateCondition; }
+
+	virtual void NativeUpdateAnimation(float DeltaTime) override;
+	void OnUpdateTargetHandle();
+
 protected:
 	virtual void NativeInitializeAnimation() override;
-	UFUNCTION(BlueprintCallable)
-	void UnEquipPoint();
-	UFUNCTION(BlueprintCallable)
-	void UnEquip();
-	UFUNCTION(BlueprintCallable)
-	void Equip();
-	UFUNCTION(BlueprintCallable)
-	void AttackEnd();
-	UFUNCTION(BlueprintCallable)
-	void EndEngaging();
+
 private:
 	bool IsShouldMove();
 	bool IsFalling();

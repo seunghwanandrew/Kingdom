@@ -47,8 +47,11 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void StartLockon();
+	void StartLockon(AActor* Target);
 	UFUNCTION(BlueprintCallable)
 	void EndLockon();
+	UFUNCTION(BlueprintCallable)
+	void OnTargetDead();
 protected:
 	virtual void BeginPlay() override;
 private:

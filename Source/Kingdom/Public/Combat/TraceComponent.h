@@ -5,6 +5,7 @@
 #include "TraceComponent.generated.h"
 
 class USkeletalMeshComponent;
+struct FTraceSockets;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class KINGDOM_API UTraceComponent : public UActorComponent
@@ -21,11 +22,8 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	AActor* Owner = nullptr;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
-	FName Start;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
-	FName End;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
-	FName Rotation;
+	TArray<FTraceSockets> SocketList;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	double BoxCollisionLength = 30.0f;
 	UPROPERTY(VisibleAnywhere, Category = Combat, meta = (AllowPrivateAccess = "true"))
@@ -35,7 +33,7 @@ private:
 
 	/* Debug */
 	UPROPERTY(EditAnywhere, Category = Debug, meta = (AllowPrivateAccess = "true"))
-	bool bDebugMode = false;
+	bool bIsDebugMode = false;
 #pragma endregion
 
 #pragma region Functions

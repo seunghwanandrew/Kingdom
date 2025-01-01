@@ -14,10 +14,8 @@ class KINGDOM_API IHitInterface
 {
 	GENERATED_BODY()
 public:
-	virtual float GetDamage() { return 10.0f; }
-
 	UFUNCTION(BlueprintNativeEvent)
 	float GetCharacterStrength();
 	UFUNCTION(BlueprintNativeEvent)
-	void GetHit(float DamageAmount, AController* EventInstigator, AActor* DamageCauser);
+	void GetHit(float DamageAmount, AController* EventInstigator, AActor* DamageCauser, FVector ImpactPoint);
 };

@@ -1,31 +1,32 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Character/CharacterClass.h"
 #include "Interfaces/PlayerInterface.h"
 #include "Interfaces/HitInterface.h"
 #include "EnumClass/EnumClass.h"
 #include "PlayerClass.generated.h"
 
-class UInputMappingContext;
-class UInputAction;
-class USpringArmComponent;
-class UCameraComponent;
-class USkeletalMeshComponent;
-class UCapsuleComponent;
-class UStatsComponent;
 class UActionComponent;
-class ULockonComponent;
-class UCombatComponent;
-class UTraceComponent;
-class UPlayerAnimInstance;
-struct FInputActionValue;
-
-class AEquipableItemClass;
+class UCameraComponent;
+class UCapsuleComponent;
 class ACloseRangedWeaponClass;
 
+class AEquipableItemClass;
+class UInputMappingContext;
+class UInputAction;
+
+class UPlayerAnimInstance;
+class USpringArmComponent;
+class USkeletalMeshComponent;
+
+class UTraceComponent;
+
+struct FInputActionValue;
+
+
 UCLASS()
-class KINGDOM_API APlayerClass : public ACharacter, public IPlayerInterface, public IHitInterface
+class KINGDOM_API APlayerClass : public ACharacterClass, public IPlayerInterface
 {
 	GENERATED_BODY()
 #pragma region Variables
@@ -38,10 +39,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Items)
 	ACloseRangedWeaponClass* CloseRangedWeaponItem;
 private:
-	/* Other Component */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	UCharacterMovementComponent* MoveComponent;
-
 	/* Input Component */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputMappingContext* DefaultMappingContext;
@@ -59,6 +56,10 @@ private:
 	UInputAction* EKeyPressedAction;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CrouchAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SprintModeControlKey;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* RollAction;
 
 	/* Camera Component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"));
@@ -72,15 +73,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Appearance, meta = (AllowPrivateAccess = "true"));
 	USkeletalMeshComponent* Scabbard;
 
-	/* Combat Component */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
-	ULockonComponent* LockonComponent;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
-	UCombatComponent* CombatComponent;
-
-	/* Stats Component */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
-	UStatsComponent* StatsComponent;
+	/* Action Component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
 	UActionComponent* ActionComponent;
 
@@ -100,8 +93,6 @@ private:
 
 	/* Animation_Montage */
 	UPROPERTY(EditAnywhere, Category = Montage, meta = (AllowPrivateAccess = "true"))
-	UAnimMontage* EquipProcessMontage;
-	UPROPERTY(EditAnywhere, Category = Montage, meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* EquipMotionMontage;
 	UPROPERTY(EditAnywhere, Category = Montage, meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* UnEquipMotionMontage;
@@ -114,11 +105,8 @@ public:
 	FORCEINLINE void SetActionState(const EPlayerActionState& StateCondition) { ActionState = StateCondition; }
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE void SetIsEngaging(bool Value) { bIsEngaging = Value; }
-	FORCEINLINE virtual float GetDamage() override { return 15.0f; }
 
 	/* Getter */
-	UFUNCTION(BlueprintCallable)
-	FORCEINLINE UCharacterMovementComponent* GetMoveComponent() { return MoveComponent; }
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE EPlayerActionState GetActionState() { return ActionState; }
 
@@ -128,7 +116,9 @@ public:
 	UFUNCTION(BlueprintAuthorityOnly)
 	void OnAttackPerformedHandler(float AttackStamina);
 	UFUNCTION(BlueprintAuthorityOnly)
-	void OnStealthMovementHandler(float StealthStaminaUsage);
+	void OnMovementStaminaHandler(float StaminaUsage);
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnDeath(int32 Index);
 
 	APlayerClass();
 	virtual void Tick(float DeltaTime) override;
@@ -139,18 +129,25 @@ public:
 	void HandleAttackEnd();
 	UTraceComponent* GetCurrentEquipWeaponTraceComponent();
 	void UnEquipPoint();
-	float GetCharacterStrength_Implementation();
+
+	/* Interface */
+	virtual void GetHit_Implementation(float DamageAmount, AController* EventInstigator, AActor* DamageCauser, FVector ImpactPoint) override;
 	bool HasEnoughStamina_Implementation(float MinValue);
+	void TargetDeathProcess_Implementation();
 
 protected:
 	virtual void BeginPlay() override;
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	virtual void Jump() override;
+	virtual void StopJumping() override;
 	void EKeyPressed();
 	void LockonProcess();
 	void ComboAttackProcess();
 	void StealthMovement();
 	void StealthToWalkMovement();
+	void SprintModeControl();
+	void Rolling();
 
 	UFUNCTION(BlueprintCallable)
 	void SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem, FName CurrentSocketName);
@@ -163,11 +160,10 @@ private:
 	void EquipCloseRangeWeaponProcess();
 	void UnEquipCloseRangeWeaponProcess();
 
-	void Initialize();
-	void CreateInitComponent();
+	virtual void Initialize() override;
+	virtual void CreateInitComponent() override;
+	virtual void CreateCombatComponent() override;
 	void CreateAppearanceComponent();
-	void CreateCombatComponent();
-	void CreateStatsComponent();
 	void StoreWeaponItem(AActor* ItemToStore);
 #pragma endregion	
 

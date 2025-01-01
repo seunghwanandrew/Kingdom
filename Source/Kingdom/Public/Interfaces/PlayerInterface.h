@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "EnumClass/EnumClass.h"
 #include "PlayerInterface.generated.h"
 
 UINTERFACE(MinimalAPI)
@@ -19,4 +20,6 @@ public:
 	void SetOverlappedItem(AActor* OverlappedItemRef);
 	UFUNCTION(BlueprintNativeEvent)
 	bool HasEnoughStamina(float MinValue);
+	UFUNCTION(BlueprintNativeEvent)
+	void TargetDeathProcess();
 };

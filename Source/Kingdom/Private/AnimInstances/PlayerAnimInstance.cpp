@@ -2,6 +2,12 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Character/PlayerClass.h"
 
+void UPlayerAnimInstance::NativeInitializeAnimation()
+{
+	Super::NativeInitializeAnimation();
+	PlayerRef = Cast<APlayerClass>(TryGetPawnOwner());
+}
+
 void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaTime)
 {
 	Super::NativeUpdateAnimation(DeltaTime);
@@ -10,43 +16,6 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsFalling = IsFalling();
 	GroundSpeed = SetGroundSpeed();
 	GroundDirection = SetGroundDirection();
-}
-
-void UPlayerAnimInstance::NativeInitializeAnimation()
-{
-	Super::NativeInitializeAnimation();
-	PlayerRef = Cast<APlayerClass>(TryGetPawnOwner());
-}
-
-void UPlayerAnimInstance::UnEquipPoint()
-{
-	PlayerRef->UnEquipPoint();
-}
-
-void UPlayerAnimInstance::UnEquip()
-{
-	if (!IsValid(PlayerRef)) return;
-	ActionState = EPlayerActionState::EPAS_None;
-	PlayerRef->SetActionState(ActionState);
-}
-
-void UPlayerAnimInstance::Equip()
-{
-	if (!IsValid(PlayerRef)) return;
-	ActionState = EPlayerActionState::EPAS_Combat;
-	PlayerRef->SetActionState(ActionState);
-}
-
-void UPlayerAnimInstance::AttackEnd()
-{
-	if (!IsValid(PlayerRef)) return;
-	PlayerRef->HandleAttackEnd();
-}
-
-void UPlayerAnimInstance::EndEngaging()
-{
-	if (!IsValid(PlayerRef)) return;
-	PlayerRef->SetIsEngaging(false);
 }
 
 void UPlayerAnimInstance::OnUpdateTargetHandle()

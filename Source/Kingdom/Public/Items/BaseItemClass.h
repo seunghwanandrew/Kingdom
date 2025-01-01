@@ -29,7 +29,7 @@ public:
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item State")
-	EItemState ItemState = EItemState::EIS_NONE;
+	EItemState ItemState = EItemState::EIS_None;
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TrigData", meta= (AllowPrivateAccess = "true"))

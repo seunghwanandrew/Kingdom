@@ -3,6 +3,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Character.h"
 #include "Character/PlayerClass.h"
+#include "Character/EnemyClass.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Interfaces/EnemyInterface.h"
 
@@ -41,9 +42,28 @@ void ULockonComponent::StartLockon()
 	if (!bHasFoundTarget) return;
 	if (!OutHitResult.GetActor()->Implements<UEnemyInterface>()) return;
 
+	if (OutHitResult.GetActor()->ActorHasTag("Boss"))
+	{
+		CurrentTargetActor = OutHitResult.GetActor();
+		APlayerClass* PlayerRef = Cast<APlayerClass>(Player);
+		PlayerRef->SetIsEngaging(true);
+		Cast<AEnemyClass>(CurrentTargetActor)->OnDeathNotifyDelegate.AddDynamic(this, &ULockonComponent::OnTargetDead);
+		Cast<AEnemyClass>(CurrentTargetActor)->SetHealthBarVisibility(true);
+		SceneUpdate(FVector{ 0.0f, 0.0f, 100.0f }, false, true, true);
+
+		IEnemyInterface::Execute_OnTargeted(CurrentTargetActor);
+
+		BroadCastCurrentTarget(CurrentTargetActor, DebugMessageOn);
+	}
+}
+
+void ULockonComponent::StartLockon(AActor* Target)
+{
 	APlayerClass* PlayerRef = Cast<APlayerClass>(Player);
 	PlayerRef->SetIsEngaging(true);
-	CurrentTargetActor = OutHitResult.GetActor();
+	CurrentTargetActor = Target;
+	Cast<AEnemyClass>(CurrentTargetActor)->OnDeathNotifyDelegate.AddDynamic(this, &ULockonComponent::OnTargetDead);
+	Cast<AEnemyClass>(CurrentTargetActor)->SetHealthBarVisibility(true);
 	SceneUpdate(FVector{ 0.0f, 0.0f, 100.0f }, false, true, true);
 
 	IEnemyInterface::Execute_OnTargeted(CurrentTargetActor);
@@ -56,11 +76,20 @@ void ULockonComponent::EndLockon()
 	if (!IsValid(CurrentTargetActor)) return;
 	if (!CurrentTargetActor->Implements<UEnemyInterface>()) { return; }
 
+	Cast<AEnemyClass>(CurrentTargetActor)->OnDeathNotifyDelegate.RemoveDynamic(this, &ULockonComponent::OnTargetDead);
+	Cast<AEnemyClass>(CurrentTargetActor)->SetHealthBarVisibility(false);
 	IEnemyInterface::Execute_UnTargeted(CurrentTargetActor);
-
 	CurrentTargetActor = nullptr;
 	SceneUpdate(FVector::ZeroVector, true, false, false);
 	BroadCastCurrentTarget(CurrentTargetActor, DebugMessageOn);
+}
+
+void ULockonComponent::OnTargetDead()
+{
+	IEnemyInterface::Execute_UnTargeted(CurrentTargetActor);
+	CurrentTargetActor = nullptr;
+	SceneUpdate(FVector::ZeroVector, true, false, false);
+	OnUpdateTargetDelegate.Broadcast(CurrentTargetActor);
 }
 
 bool ULockonComponent::TraceProcess_FindTargetActor(FHitResult OutResult)

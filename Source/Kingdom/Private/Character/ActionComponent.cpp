@@ -2,6 +2,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interfaces/PlayerInterface.h"
+#include "Kismet/KismetMathLibrary.h"
 
 UActionComponent::UActionComponent()
 {
@@ -23,6 +24,12 @@ void UActionComponent::BeginPlay()
 void UActionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (bIsSprintMode)
+	{
+		if (MoveComponent->Velocity.Equals(FVector::ZeroVector, 1)) { return; }
+		OnMovementStaminaUsageDelegate.Broadcast(StaminaToUseMovement);
+	}
 }
 
 void UActionComponent::BasicWalkMovement()
@@ -32,7 +39,7 @@ void UActionComponent::BasicWalkMovement()
 
 void UActionComponent::StealthMovement()
 {
-	if (!PlayerInterface->Execute_HasEnoughStamina(CharacterRef, StaminaToUseForStealthMove))
+	if (!PlayerInterface->Execute_HasEnoughStamina(CharacterRef, StaminaToUseMovement))
 	{
 		BasicWalkMovement();
 		return;
@@ -42,6 +49,43 @@ void UActionComponent::StealthMovement()
 
 	MoveComponent->MaxWalkSpeed = StealthMoveSpeed;
 
-	OnStealthMovementDelegate.Broadcast(StaminaToUseForStealthMove);
+	OnMovementStaminaUsageDelegate.Broadcast(StaminaToUseMovement);
+}
+
+void UActionComponent::SprintMovement()
+{
+	if (!PlayerInterface->Execute_HasEnoughStamina(CharacterRef, StaminaToUseMovement))
+	{
+		BasicWalkMovement();
+		bIsSprintMode = false;
+		return;
+	}
+
+	bIsSprintMode = true;
+	MoveComponent->MaxWalkSpeed = SprintMoveSpeed;
+}
+
+void UActionComponent::Roll()
+{
+	if (bIsRollActive || !PlayerInterface->Execute_HasEnoughStamina(CharacterRef, RollingStaminaUsage))	return;
+
+	bIsRollActive = true;
+
+	OnMovementStaminaUsageDelegate.Broadcast(RollingStaminaUsage);
+
+	FVector Direction = CharacterRef->GetCharacterMovement()->Velocity.Length() < 1 ? CharacterRef->GetActorForwardVector() : CharacterRef->GetLastMovementInputVector();
+	FRotator NewRotator = UKismetMathLibrary::MakeRotFromX(Direction);
+	CharacterRef->SetActorRotation(NewRotator);
+	CharacterRef->PlayAnimMontage(RollMontage);
+	float PlayTime = RollMontage->GetPlayLength();
+
+	FTimerHandle RollTimerHandle;
+
+	GetWorld()->GetTimerManager().SetTimer(RollTimerHandle, this, &UActionComponent::FinishRollAnimation, PlayTime);
+}
+
+void UActionComponent::FinishRollAnimation()
+{
+	bIsRollActive = false;
 }
 

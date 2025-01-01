@@ -19,7 +19,7 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
-void UCombatComponent::ComboAttack()
+void UCombatComponent::Player_ComboAttack()
 {
 	IPlayerInterface* PlayerInterface = nullptr;
 	if (CharacterRef->Implements<UPlayerInterface>())
@@ -32,13 +32,23 @@ void UCombatComponent::ComboAttack()
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Not Enought Stamina is remained"));
 		return;
 	}
-	CharacterRef->PlayAnimMontage(AttackAnimations[ComboCounter]);
-	
+	AttackMontage = AttackMontageList[ComboCounter];
+	CharacterRef->PlayAnimMontage(AttackMontage);
 	ComboCounter++;
-	int MaxCombo = AttackAnimations.Num() - 1;
+	int MaxCombo = AttackMontageList.Num() - 1;
 	ComboCounter = UKismetMathLibrary::Wrap(ComboCounter, -1, MaxCombo);
 
 	OnAttackPerformedDelegate.Broadcast(StaminaToUseForAttacking);
+}
+
+void UCombatComponent::Enemy_Attack()
+{
+	if (AttackMontageList.Num() <= 0) return;
+	int32 RandomIndex = FMath::RandRange(0, AttackMontageList.Num() - 1);
+
+	AttackMontage = AttackMontageList[RandomIndex];
+
+	Cast<ACharacter>(GetOwner())->PlayAnimMontage(AttackMontage);
 }
 
 

@@ -8,7 +8,8 @@ public class Kingdom : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", 
+																"Niagara", "AIModule", "NavigationSystem", "MotionWarping", "UMG" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

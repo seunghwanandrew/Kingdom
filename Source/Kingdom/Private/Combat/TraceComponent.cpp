@@ -3,6 +3,8 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Interfaces/HitInterface.h"
+#include "Combat/TraceSockets.h"
+#include "GameFramework/Actor.h"
 
 UTraceComponent::UTraceComponent()
 {
@@ -12,6 +14,7 @@ UTraceComponent::UTraceComponent()
 void UTraceComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!IsValid(Owner)) Owner = GetOwner();
 	SkeletalMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
 }
 
@@ -31,23 +34,35 @@ void UTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 void UTraceComponent::BoxTraceProcess_FindTargetActor(TArray<FHitResult>& OutHitResults)
 {
 	if (!IsValid(SkeletalMesh)) return;
-	FVector StartSocketLocation = SkeletalMesh->GetSocketLocation(Start);
-	FVector EndSocketLocation = SkeletalMesh->GetSocketLocation(End);
-	FQuat ShapeRotation = SkeletalMesh->GetSocketQuaternion(Rotation);
 
-	double WeaponLength = FVector::Distance(StartSocketLocation, EndSocketLocation);
-	FVector BoxHalfExtent = FVector{ BoxCollisionLength, BoxCollisionLength, WeaponLength } *0.5f;
-	FCollisionShape Box = FCollisionShape::MakeBox(BoxHalfExtent);
-	FCollisionQueryParams IgnoreParams = { FName{ TEXT("Ignore Params") }, false, Owner };
-
-	bool bHasFoundTarget = GetWorld()->SweepMultiByChannel(
-		OutHitResults, StartSocketLocation, EndSocketLocation, ShapeRotation,
-		ECollisionChannel::ECC_GameTraceChannel1, Box, IgnoreParams
-	);
-
-	if (bDebugMode)
+	for (const FTraceSockets& Socket : SocketList)
 	{
-		DrawDebugBoxTrace(StartSocketLocation, EndSocketLocation, Box, bHasFoundTarget, ShapeRotation);
+		FVector StartSocketLocation = SkeletalMesh->GetSocketLocation(Socket.Start);
+		FVector EndSocketLocation = SkeletalMesh->GetSocketLocation(Socket.End);
+		FQuat ShapeRotation = SkeletalMesh->GetSocketQuaternion(Socket.Rotation);
+
+		TArray<FHitResult> OutResults;
+		double WeaponLength = FVector::Distance(StartSocketLocation, EndSocketLocation);
+		FVector BoxHalfExtent = FVector{ BoxCollisionLength, BoxCollisionLength, WeaponLength } *0.5f;
+		FCollisionShape Box = FCollisionShape::MakeBox(BoxHalfExtent);
+
+		FCollisionQueryParams IgnoreParams = { FName{ TEXT("Ignore Params") }, false, Owner };
+
+		bool bHasFoundTarget = GetWorld()->SweepMultiByChannel(
+			OutResults, StartSocketLocation, EndSocketLocation, ShapeRotation,
+			ECollisionChannel::ECC_GameTraceChannel1, Box, IgnoreParams
+		);
+
+		for (const FHitResult& Hit : OutResults)
+		{
+			if (Owner->ActorHasTag("Enemy") == Hit.GetActor()->ActorHasTag("Enemy")) continue;
+			OutHitResults.Add(Hit);
+		}
+
+		if (bIsDebugMode)
+		{
+			DrawDebugBoxTrace(StartSocketLocation, EndSocketLocation, Box, bHasFoundTarget, ShapeRotation);
+		}
 	}
 }
 
@@ -85,6 +100,7 @@ void UTraceComponent::ApplyDamageToFoundActor(TArray<FHitResult>& OutHitResults,
 	for (const FHitResult& HitResult : OutHitResults)
 	{
 		AActor* TargetActor = HitResult.GetActor();
+		FVector ImpactPoint = HitResult.ImpactPoint;
 		if (TargetToIgnore.Contains(TargetActor)) continue;
 
 		bool IsTrue = TargetActor->Implements<UHitInterface>();
@@ -92,7 +108,7 @@ void UTraceComponent::ApplyDamageToFoundActor(TArray<FHitResult>& OutHitResults,
 		if (IsTrue)
 		{
 			IHitInterface* HitInterface = Cast<IHitInterface>(TargetActor);
-			HitInterface->Execute_GetHit(TargetActor, CharacterDamage, Owner->GetInstigatorController(), Owner);
+			HitInterface->Execute_GetHit(TargetActor, CharacterDamage, Owner->GetInstigatorController(), Owner, ImpactPoint);
 		}
 		TargetToIgnore.AddUnique(TargetActor);
 	}

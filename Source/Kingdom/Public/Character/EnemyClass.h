@@ -3,39 +3,131 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Character/CharacterClass.h"
 #include "Interfaces/EnemyInterface.h"
 #include "Interfaces/HitInterface.h"
+#include "UserWidget/EnemyHealthBarComponent.h"
+#include "UserWidget/EnemyHealthBar.h"
+#include "EnumClass/EnumClass.h"
 #include "EnemyClass.generated.h"
 
-class UStatsComponent;
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnTargetDetectedSignature, AEnemyClass, OnTargetDectectedDelegate, AActor*, Target, bool, bIsTarget);
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE(FDeathNotifySignature, AEnemyClass, OnDeathNotifyDelegate);
 
+class AAIController;
+class AEquipableItemClass;
+class ACloseRangedWeaponClass;
+class UBlackboardComponent;
+class UEnemyHealthBarComponent;
+class UEnemyAnimInstance;
+class UMotionWarpingComponent;
+class UObject;
+class UPawnSensingComponent;
+class USphereComponent;
 class UTargetDisplayerWidgetComponent;
+class UTraceComponent;
+
+struct FTimerHandle;
 
 UCLASS()
-class KINGDOM_API AEnemyClass : public ACharacter, public IEnemyInterface, public IHitInterface
+class KINGDOM_API AEnemyClass : public ACharacterClass, public IEnemyInterface
 {
 	GENERATED_BODY()
 
 #pragma region Variables
 public:
+	UPROPERTY(BlueprintAuthorityOnly)
+	FOnTargetDetectedSignature OnTargetDectectedDelegate;
+	UPROPERTY(BlueprintAuthorityOnly)
+	FDeathNotifySignature OnDeathNotifyDelegate;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EnemyState)
+	UBlackboardComponent* Blackboard;
+
+
 protected:
+	UPROPERTY(VisibleAnywhere, Category = Controller)
+	AAIController* EnemyController;
+
+	/* Monatage */
+	UPROPERTY(EditAnywhere, Category = Montage)
+	TArray<UAnimMontage*> TransformMotionList;
+	UPROPERTY(EditAnywhere, Category = Montage)
+	UAnimMontage* MontageToTransformPlay;
+
 private:
 	/* Combat Component */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
-	UStatsComponent* StatsComponent;
+	UPawnSensingComponent* PawnSensing;
 
-	/* User Widget Component */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	UTraceComponent* TraceComponent;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	UMotionWarpingComponent* MotionWarping;
+
+	/* Enemy Widget Component */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	UTargetDisplayerWidgetComponent* TargetDisplayer;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	UEnemyHealthBarComponent* HealthBarComponent;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float InitWalkSpeed = 55.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float MaxWalkSpeed = 550.0f;
+
+	/* Movement Variable */
+	UPROPERTY(EditAnywhere, Category = "AI Movement", meta = (AllowPrivateAccess = "true"))
+	TArray<AActor*> RoamingTargetDestination;
+
+	/* Combat Variable */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	AActor* DetectedTarget;
+	float WarpTargetDistance = 25.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	bool bIsDead = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AEquipableItemClass> Weapon;
+	AEquipableItemClass* DefaultWeapon;
+
+	/* Anim Instance */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"));
+	UEnemyAnimInstance* AnimInstance;
 #pragma endregion
 
 #pragma region Functions
 public:
+	/* Setter */
+	FORCEINLINE void SetDetectedTarget(AActor* Target) { DetectedTarget = Target; }
+	FORCEINLINE void SetHealthBarVisibility(bool Value) { HealthBarComponent->SetVisibility(Value); }
+	/* Getter */
+	FORCEINLINE UTraceComponent* GetTraceComponent() { return TraceComponent; }
+	UTraceComponent* GetCurrentEquipWeaponTraceComponent();
+	FORCEINLINE float GetInitWalkSpeedValue() { return InitWalkSpeed; }
+	FORCEINLINE float GetMaxWalkSpeedValue() { return MaxWalkSpeed; }
+	FORCEINLINE bool HasDefaultWeapon() { return (DefaultWeapon != nullptr) ? true : false; }
+
 	AEnemyClass();
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	void GetHit_Implementation(float DamageAmount, AController* EventInstigator, AActor* DamageCauser);
+	void Attack();
+	void HandleAttackEnd();
+	FVector RandomDestinationLocation();
+	UAnimMontage* GetTransformPlayMontage();
+	void SetTransfromPlayMontage(UAnimMontage* MontageToPlay);
+	void SelectRandomTransformPlayMontage();
+	
+	/* Interfaces */
+	virtual void GetHit_Implementation(float DamageAmount, AController* EventInstigator, AActor* DamageCauser, FVector ImpactPoint) override;
+
+	/* Event Handler */
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnSeePawn(APawn* Pawn);
+	UFUNCTION(BlueprintAuthorityOnly)
+	void OnDeath(int32 Index);
+
+	/* Custom Event */
+	void SetWarpTargetTranslation();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -43,8 +135,9 @@ protected:
 	void UnTargeted_Implementation() override;
 
 private:
-	void Initialize();
-	void CreateInitComponent();
-	void CreateCombatComponent();
+	virtual void Initialize() override;
+	virtual void CreateInitComponent() override;
+	virtual void CreateCombatComponent() override;
+	bool InRange(AActor* Target, float AcceptableRadius);
 #pragma endregion
 };

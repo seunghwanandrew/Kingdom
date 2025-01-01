@@ -1,25 +1,17 @@
 #include "Character/PlayerClass.h"
-
-#include "Camera/CameraComponent.h"
-
-#include "Components/CapsuleComponent.h"
-#include "Components/SkeletalMeshComponent.h"
-
 #include "AnimInstances/PlayerAnimInstance.h"
-
-#include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
-
-#include "EnhancedInputSubsystems.h"
-#include "EnhancedInputComponent.h"
-
-#include "Character/StatsComponent.h"
+#include "Camera/CameraComponent.h"
 #include "Character/ActionComponent.h"
-
+#include "Character/StatsComponent.h"
 #include "Combat/LockonComponent.h"
 #include "Combat/CombatComponent.h"
 #include "Combat/TraceComponent.h"
-
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Items/EquipableItems/CloseRangedWeaponClass.h"
 
 APlayerClass::APlayerClass()
@@ -29,7 +21,6 @@ APlayerClass::APlayerClass()
 	CreateInitComponent();
 	CreateAppearanceComponent();
 	CreateCombatComponent();
-	CreateStatsComponent();
 }
 
 void APlayerClass::BeginPlay()
@@ -40,7 +31,8 @@ void APlayerClass::BeginPlay()
 
 	LockonComponent->OnUpdateTargetDelegate.AddDynamic(this, &APlayerClass::OnUpdateTargetHandler);
 	CombatComponent->OnAttackPerformedDelegate.AddDynamic(this, &APlayerClass::OnAttackPerformedHandler);
-	ActionComponent->OnStealthMovementDelegate.AddDynamic(this, &APlayerClass::OnStealthMovementHandler);
+	ActionComponent->OnMovementStaminaUsageDelegate.AddDynamic(this, &APlayerClass::OnMovementStaminaHandler);
+	StatsComponent->OnDeathDelegate.AddDynamic(this, &APlayerClass::OnDeath);
 }
 
 void APlayerClass::Tick(float DeltaTime)
@@ -68,8 +60,8 @@ void APlayerClass::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!EnhancedInput) return;
 
-	EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-	EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+	EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &APlayerClass::Jump);
+	EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &APlayerClass::StopJumping);
 	EnhancedInput->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayerClass::Move);
 	EnhancedInput->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerClass::Look);
 	EnhancedInput->BindAction(LockonAction, ETriggerEvent::Started, this, &APlayerClass::LockonProcess);
@@ -77,6 +69,8 @@ void APlayerClass::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	EnhancedInput->BindAction(EKeyPressedAction, ETriggerEvent::Started, this, &APlayerClass::EKeyPressed);
 	EnhancedInput->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &APlayerClass::StealthMovement);
 	EnhancedInput->BindAction(CrouchAction, ETriggerEvent::Completed, this, &APlayerClass::StealthToWalkMovement);
+	EnhancedInput->BindAction(SprintModeControlKey, ETriggerEvent::Triggered, this, &APlayerClass::SprintModeControl);
+	EnhancedInput->BindAction(RollAction, ETriggerEvent::Triggered, this, &APlayerClass::Rolling);
 }
 
 void APlayerClass::OnUpdateTargetHandler(AActor* TargetActor)
@@ -102,9 +96,34 @@ void APlayerClass::OnAttackPerformedHandler(float AttackStamina)
 	StatsComponent->ApplyStaminaUsage(AttackStamina);
 }
 
-void APlayerClass::OnStealthMovementHandler(float StealthStaminaUsage)
+void APlayerClass::OnMovementStaminaHandler(float StaminaUsage)
 {
-	StatsComponent->ApplyStaminaUsage(StealthStaminaUsage);
+	StatsComponent->ApplyStaminaUsage(StaminaUsage);
+}
+
+void APlayerClass::OnDeath(int32 Index)
+{
+	DisableInput(GetController<APlayerController>());
+	ActionState = EPlayerActionState::EPAS_Death;
+	AnimInstance->SetActionState(ActionState);
+	switch (Index)
+	{
+	case 0:
+		AnimInstance->SetDeathPose(EDeathPose::EDP_Death_01);
+		break;
+	case 1:
+		AnimInstance->SetDeathPose(EDeathPose::EDP_Death_02);
+		break;
+	case 2:
+		AnimInstance->SetDeathPose(EDeathPose::EDP_Death_03);
+		break;
+	case 3:
+		AnimInstance->SetDeathPose(EDeathPose::EDP_Death_04);
+		break;
+	}	
+	LockonComponent->EndLockon();
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// TODO : Play Death Widget
 }
 
 void APlayerClass::SetOverlappedItem_Implementation(AActor* OverlappedItemRef)
@@ -130,14 +149,30 @@ void APlayerClass::UnEquipPoint()
 	SwitchingWeaponEquipSocket(CurrentEquippedWeapon, CurrentWeaponEquipPointSocketName);
 }
 
-float APlayerClass::GetCharacterStrength_Implementation()
+
+void APlayerClass::GetHit_Implementation(float DamageAmount, AController* EventInstigator, AActor* DamageCauser, FVector ImpactPoint)
 {
-	return StatsComponent->Stats[EStats::ES_Strength];
+	if (ActionComponent->IsRollingMode()) return;
+
+	Super::GetHit_Implementation(DamageAmount, EventInstigator, DamageCauser, ImpactPoint);
+	if (!bIsEngaging && DamageCauser->ActorHasTag("Boss"))
+	{
+		LockonComponent->StartLockon(DamageCauser);
+	}
+	if (ActionState == EPlayerActionState::EPAS_Attacking)
+	{
+		ActionState = EPlayerActionState::EPAS_Combat;
+	}
 }
 
 bool APlayerClass::HasEnoughStamina_Implementation(float MinValue)
 {
 	return StatsComponent->Stats[EStats::ES_Stamina] >= MinValue;
+}
+
+void APlayerClass::TargetDeathProcess_Implementation()
+{
+	LockonComponent->EndLockon();
 }
 
 void APlayerClass::Move(const FInputActionValue& Value)
@@ -162,6 +197,17 @@ void APlayerClass::Look(const FInputActionValue& Value)
 	if (!Controller) return;
 	AddControllerYawInput(LookVector.X);
 	AddControllerPitchInput(LookVector.Y);
+}
+
+void APlayerClass::Jump()
+{
+	if (ActionComponent->IsRollingMode()) return;
+	Super::Jump();
+}
+
+void APlayerClass::StopJumping()
+{
+	Super::StopJumping();
 }
 
 void APlayerClass::EKeyPressed()
@@ -194,7 +240,7 @@ void APlayerClass::EKeyPressed()
 					UnEquipCloseRangeWeaponProcess();
 				}
 			}
-		}			
+		}
 	}
 }
 
@@ -215,7 +261,7 @@ void APlayerClass::ComboAttackProcess()
 {
 	if (!IsValid(CombatComponent) || ActionState != EPlayerActionState::EPAS_Combat) return;
 	ActionState = EPlayerActionState::EPAS_Attacking;
-	CombatComponent->ComboAttack();
+	CombatComponent->Player_ComboAttack();
 }
 
 void APlayerClass::StealthMovement()
@@ -228,10 +274,31 @@ void APlayerClass::StealthToWalkMovement()
 	ActionComponent->BasicWalkMovement();
 }
 
+void APlayerClass::SprintModeControl()
+{
+	bool Sprinting = ActionComponent->IsSprintMode();
+
+	if (!Sprinting)
+	{
+		ActionComponent->SprintMovement();
+	}
+	else
+	{
+		ActionComponent->SetSprintMode(false);
+		ActionComponent->BasicWalkMovement();
+	}
+}
+
+void APlayerClass::Rolling()
+{
+	if (MoveComponent->IsFalling()) return;
+	ActionComponent->Roll();
+}
+
 void APlayerClass::SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem, FName CurrentSocketName)
 {
 	if (!IsValid(EquipmentItem) || CurrentSocketName == FName("")) return;
-
+	if (ActionState == EPlayerActionState::EPAS_Death) return;
 	if (EquipmentItem->ActorHasTag("CloseRangedWeaponClass"))
 	{
 		if (CurrentSocketName == CloseRangedWeaponUnEquipSocketName)
@@ -247,17 +314,20 @@ void APlayerClass::SwitchingWeaponEquipSocket(AEquipableItemClass* EquipmentItem
 
 void APlayerClass::SetWeaponToEquip_UnEquipSocketPoint(AEquipableItemClass* EquipmentItem, FName SocketName)
 {
+	if (ActionState == EPlayerActionState::EPAS_Death) return;
 	EquipmentItem->AttachMeshtoSocket(GetMesh(), SocketName);
 }
 
 FName APlayerClass::GetCurrentEquippedSocketName(AEquipableItemClass* EquipmentItem)
 {
+	if (ActionState == EPlayerActionState::EPAS_Death) return FName("");
 	if (!IsValid(EquipmentItem)) return FName("");
 	return EquipmentItem->GetAttachParentSocketName();
 }
 
 void APlayerClass::EquipCloseRangeWeaponProcess()
 {
+	if (ActionState == EPlayerActionState::EPAS_Death) return;
 	if (!IsValid(EquipMotionMontage)) return;
 	PlayAnimMontage(EquipMotionMontage);
 	ActionState = EPlayerActionState::EPAS_Equipping;
@@ -265,6 +335,7 @@ void APlayerClass::EquipCloseRangeWeaponProcess()
 
 void APlayerClass::UnEquipCloseRangeWeaponProcess()
 {
+	if (ActionState == EPlayerActionState::EPAS_Death) return;
 	if (!IsValid(UnEquipMotionMontage)) return;
 	PlayAnimMontage(UnEquipMotionMontage);
 	ActionState = EPlayerActionState::EPAS_Equipping;
@@ -272,23 +343,22 @@ void APlayerClass::UnEquipCloseRangeWeaponProcess()
 
 void APlayerClass::Initialize()
 {
-	GetCapsuleComponent()->SetCapsuleSize(42.0f, 96.0f);
+	Super::Initialize();
+
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Overlap);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	MoveComponent = GetCharacterMovement();
-
 	MoveComponent->bUseSeparateBrakingFriction = true;
 	MoveComponent->bOrientRotationToMovement = true;
 
-	MoveComponent->MaxWalkSpeed = 600.0f;
+	MoveComponent->MaxWalkSpeed = 200.0f;
 	MoveComponent->MinAnalogWalkSpeed = 20.0f;
 	MoveComponent->BrakingDecelerationWalking = 2000.0f;
 
-	MoveComponent->JumpZVelocity = 700.0f;
+	MoveComponent->JumpZVelocity = 420.0f;
 	MoveComponent->BrakingDecelerationFalling = 1500.0f;
 	MoveComponent->AirControl = 0.35f;
 
@@ -297,10 +367,13 @@ void APlayerClass::Initialize()
 	MoveComponent->SetFixedBrakingDistance(200.0f);
 	MoveComponent->NavAgentProps.AgentRadius = 42.0f;
 	MoveComponent->NavAgentProps.AgentHeight = 192.0f;
+
+	Tags.Add("Player");
 }
 
 void APlayerClass::CreateInitComponent()
 {
+	Super::CreateInitComponent();
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
@@ -326,18 +399,17 @@ void APlayerClass::CreateAppearanceComponent()
 
 void APlayerClass::CreateCombatComponent()
 {
+	Super::CreateCombatComponent();
 	LockonComponent = CreateDefaultSubobject<ULockonComponent>(TEXT("Lockon"));
-	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("Combat"));
+	ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("Action"));
+	ProjectileSpawnLocation = CreateDefaultSubobject<USceneComponent>(TEXT("ProjectileSpawnPos"));
+	ProjectileSpawnLocation->SetupAttachment(RootComponent);
 }
 
-void APlayerClass::CreateStatsComponent()
-{
-	StatsComponent = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
-	ActionComponent = CreateDefaultSubobject<UActionComponent>(TEXT("Action"));
-}
 
 void APlayerClass::StoreWeaponItem(AActor* ItemToStore)
 {
+	if (ActionState == EPlayerActionState::EPAS_Death) return;
 	if (ItemToStore->ActorHasTag("CloseRangedWeaponClass"))
 	{
 		CloseRangedWeaponItem = Cast<ACloseRangedWeaponClass>(ItemToStore);
